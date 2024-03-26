@@ -1,0 +1,29 @@
+base_uri = "mock://cofiblocks"
+
+[[tokens]]
+name = "token1"
+value = 128
+
+[[tokens]]
+name = "token2"
+value = 2797982
+
+[[tokens]]
+name = "token3"
+value = 278962
+
+[[tokens]]
+name = "token4"
+value = 1
+
+[[tokens]]
+name = "token5"
+value = 1708720
+
+[[tokens]]
+name = "token6"
+value = 78902782
+
+[[tokens]]
+name = "token7"
+value = 1767982
