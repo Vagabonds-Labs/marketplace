@@ -1,6 +1,8 @@
+mod u256;
+
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use cainome_cairo_serde::{ByteArray, CairoSerde, Error};
+use cainome_cairo_serde::{ByteArray, CairoSerde};
 use serde::Deserialize;
 use starknet::{
     accounts::{ExecutionEncoding, SingleOwnerAccount},
@@ -16,6 +18,8 @@ use starknet::{
 };
 use thiserror::Error;
 use tokio::time::Duration;
+
+use crate::u256::U256;
 
 /// Contract parameters that needs to be passed for contract creation
 #[derive(Debug, Deserialize)]
@@ -63,37 +67,6 @@ fn class_hash(network: &Network) -> FieldElement {
         Network::Sepolia => {
             felt!("0x0120d1f2225704b003e77077b8507907d2a84239bef5e0abb67462495edd644f")
         }
-    }
-}
-
-struct U256 {
-    low: u128,
-    high: u128,
-}
-
-impl CairoSerde for U256 {
-    type RustType = Self;
-
-    fn cairo_serialize(rust: &Self::RustType) -> Vec<FieldElement> {
-        let mut felts = u128::cairo_serialize(&rust.low);
-        felts.extend(u128::cairo_serialize(&rust.high));
-        felts
-    }
-
-    fn cairo_deserialize(
-        felts: &[FieldElement],
-        offset: usize,
-    ) -> cainome_cairo_serde::Result<Self::RustType> {
-        if offset >= felts.len() {
-            return Err(Error::Deserialize(format!(
-                "Buffer too short to deserialize a unsigned integer: offset ({}) : buffer {:?}",
-                offset, felts,
-            )));
-        }
-
-        let low: u128 = felts[offset].try_into().unwrap();
-        let high: u128 = felts[offset + 1].try_into().unwrap();
-        Ok(U256 { low, high })
     }
 }
 
