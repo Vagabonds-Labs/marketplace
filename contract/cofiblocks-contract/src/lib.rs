@@ -1,6 +1,6 @@
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use cainome_cairo_serde::{ByteArray, CairoSerde};
+use cainome_cairo_serde::{ByteArray, CairoSerde, Error};
 use serde::Deserialize;
 use starknet::{
     accounts::{ExecutionEncoding, SingleOwnerAccount},
@@ -8,7 +8,7 @@ use starknet::{
     core::{
         chain_id,
         types::{BlockId, BlockTag, ExecutionResult, FieldElement, FunctionCall, StarknetError},
-        utils::cairo_short_string_to_felt,
+        utils::{cairo_short_string_to_felt, get_selector_from_name},
     },
     macros::{felt, short_string},
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider, ProviderError, Url},
@@ -63,6 +63,37 @@ fn class_hash(network: &Network) -> FieldElement {
         Network::Sepolia => {
             felt!("0x0120d1f2225704b003e77077b8507907d2a84239bef5e0abb67462495edd644f")
         }
+    }
+}
+
+struct U256 {
+    low: u128,
+    high: u128,
+}
+
+impl CairoSerde for U256 {
+    type RustType = Self;
+
+    fn cairo_serialize(rust: &Self::RustType) -> Vec<FieldElement> {
+        let mut felts = u128::cairo_serialize(&rust.low);
+        felts.extend(u128::cairo_serialize(&rust.high));
+        felts
+    }
+
+    fn cairo_deserialize(
+        felts: &[FieldElement],
+        offset: usize,
+    ) -> cainome_cairo_serde::Result<Self::RustType> {
+        if offset >= felts.len() {
+            return Err(Error::Deserialize(format!(
+                "Buffer too short to deserialize a unsigned integer: offset ({}) : buffer {:?}",
+                offset, felts,
+            )));
+        }
+
+        let low: u128 = felts[offset].try_into().unwrap();
+        let high: u128 = felts[offset + 1].try_into().unwrap();
+        Ok(U256 { low, high })
     }
 }
 
@@ -167,23 +198,32 @@ pub async fn deploy_contract(
     let byte_array = ByteArray::from_string(&spec.base_uri).unwrap();
     ctor_args.append(&mut ByteArray::cairo_serialize(&byte_array));
     ctor_args.push(FieldElement::from_hex_be(recipient).unwrap());
-    // For the token span array we need to set the len as a felt first
-    ctor_args.push(FieldElement::from(spec.tokens.len()));
-    for token in &spec.tokens {
-        // FIXME: Hashing is not working
-        //let mut hasher = Sha256::new();
-        //hasher.update(&token.name);
-        //let hashed_name: [u8; 32] = hasher.finalize().into();
-        //ctor_args.push(FieldElement::from_bytes_be(&hashed_name).unwrap());
-        ctor_args.push(cairo_short_string_to_felt(&token.name).unwrap());
-    }
-    // For the token span array we need to set the len as a felt first
-    ctor_args.push(FieldElement::from(spec.tokens.len()));
-    for token in &spec.tokens {
-        ctor_args.push(FieldElement::from(token.value));
-    }
 
-    let contract_deployment = contract_factory.deploy(ctor_args, salt, true);
+    let mut tokens = vec![];
+    for token in &spec.tokens {
+        let mut bytes = [0u8; 32];
+        hex::decode_to_slice(token.name.clone(), &mut bytes as &mut [u8]).unwrap();
+        let value = U256 {
+            high: u128::from_be_bytes(bytes[16..].try_into().unwrap()),
+            low: u128::from_be_bytes(bytes[..16].try_into().unwrap()),
+        };
+        tokens.push(value);
+    }
+    ctor_args.append(&mut Vec::<U256>::cairo_serialize(&tokens));
+
+    let mut values = vec![];
+    for token in &spec.tokens {
+        let value = U256 {
+            high: 0,
+            low: token.value as u128,
+        };
+        values.push(value);
+    }
+    ctor_args.append(&mut Vec::<U256>::cairo_serialize(&values));
+
+    let contract_deployment = contract_factory
+        .deploy(ctor_args, salt, true)
+        .max_fee(FieldElement::from(40000000000000_u128)); // Fixme, what value is suitable?
     let deployed_address = contract_deployment.deployed_address();
     let estimated_fee = contract_deployment.estimate_fee().await.unwrap();
     eprintln!(
@@ -214,7 +254,7 @@ pub async fn deploy_contract(
 pub async fn show_contract(network: &Network, account: &str, tokens: Vec<String>) {
     let client = client(network);
     let contract_address = FieldElement::from_hex_be(account).unwrap();
-    let selector = FieldElement::from_str("balance_of_batch").unwrap();
+    let selector = get_selector_from_name("balance_of_batch").unwrap();
 
     let mut calldata = vec![];
     calldata.push(FieldElement::from(tokens.len()));

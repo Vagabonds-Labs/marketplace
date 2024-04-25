@@ -369,6 +369,7 @@ version = "0.1.0"
 dependencies = [
  "cainome-cairo-serde",
  "clap",
+ "hex",
  "rpassword",
  "serde",
  "sha2",

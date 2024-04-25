@@ -12,6 +12,7 @@ keywords = ["vagabondlabs", "cryptocurrency", "blockchain"]
 [dependencies]
 cainome-cairo-serde = { git = "https://github.com/cartridge-gg/cainome/" }
 clap = { version = "4.5", features = ["derive"] }
+hex = "0.4"
 rpassword = "7.2"
 serde = "1.0"
 sha2 = "0.10"
