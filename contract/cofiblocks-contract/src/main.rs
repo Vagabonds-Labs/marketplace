@@ -62,22 +62,18 @@ async fn main() {
             }
             let file_content = std::fs::read_to_string(spec).unwrap();
             let spec: ContractSpec = toml::from_str(&file_content).unwrap();
-            show_contract(
-                &network,
-                &contract_address,
-                &vec![account],
-                spec.tokens
-                    .iter()
-                    .map(|token_info| token_info.name.clone())
-                    .collect(),
-            )
-            .await
+            let tokens: Vec<String> = spec
+                .tokens
+                .iter()
+                .map(|token_info| token_info.name.clone())
+                .collect();
+            show_contract(&network, &contract_address, &[account], &tokens).await
         }
         Commands::Show {
             contract_address,
             account,
             token,
-        } => show_contract(&network, &contract_address, &vec![account], vec![token]).await,
+        } => show_contract(&network, &contract_address, &[account], &[token]).await,
         Commands::Deploy {
             spec,
             address,

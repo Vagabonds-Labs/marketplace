@@ -113,10 +113,7 @@ async fn watch_tx(
         match client.get_transaction_receipt(transaction_hash).await {
             Ok(receipt) => match receipt.execution_result() {
                 ExecutionResult::Succeeded => {
-                    eprintln!(
-                        "Transaction {} confirmed",
-                        format!("{:#064x}", transaction_hash)
-                    );
+                    eprintln!("Transaction {:#064x} confirmed", transaction_hash);
 
                     return Ok(());
                 }
@@ -134,7 +131,7 @@ async fn watch_tx(
     }
 }
 
-fn tokens_to_felts(token_names: &Vec<String>) -> Vec<FieldElement> {
+fn tokens_to_felts(token_names: &[String]) -> Vec<FieldElement> {
     let mut tokens = vec![];
     for token_name in token_names {
         let mut bytes = [0u8; 32];
@@ -186,13 +183,12 @@ pub async fn deploy_contract(
     ctor_args.append(&mut ByteArray::cairo_serialize(&byte_array));
     ctor_args.push(FieldElement::from_hex_be(recipient).unwrap());
 
-    ctor_args.append(&mut tokens_to_felts(
-        &spec
-            .tokens
-            .iter()
-            .map(|token_info| token_info.name.clone())
-            .collect(),
-    ));
+    let token_names: Vec<String> = spec
+        .tokens
+        .iter()
+        .map(|token_info| token_info.name.clone())
+        .collect();
+    ctor_args.append(&mut tokens_to_felts(&token_names));
 
     let mut values = vec![];
     for token in &spec.tokens {
@@ -210,24 +206,19 @@ pub async fn deploy_contract(
     let deployed_address = contract_deployment.deployed_address();
     let estimated_fee = contract_deployment.estimate_fee().await.unwrap();
     eprintln!(
-        "Deploying class {} with salt {}, estimated fee {}...",
-        format!("{:#064x}", class_hash),
-        format!("{:#064x}", salt),
-        format!("{:#064x}", estimated_fee.overall_fee)
+        "Deploying class {:#064x} with salt {:#064x}, estimated fee {:#064x}...",
+        class_hash, salt, estimated_fee.overall_fee
     );
     eprintln!(
-        "The contract will be deployed at address {}",
-        format!("{:#064x}", deployed_address)
+        "The contract will be deployed at address {:#064x}",
+        deployed_address
     );
 
     let deployment_tx = contract_deployment.send().await.unwrap().transaction_hash;
+    eprintln!("Contract deployment transaction: {:#064x}", deployment_tx);
     eprintln!(
-        "Contract deployment transaction: {}",
-        format!("{:#064x}", deployment_tx)
-    );
-    eprintln!(
-        "Waiting for transaction {} to confirm...",
-        format!("{:#064x}", deployment_tx)
+        "Waiting for transaction {:#064x} to confirm...",
+        deployment_tx
     );
     watch_tx(client, deployment_tx, Duration::from_millis(1000))
         .await
@@ -237,9 +228,9 @@ pub async fn deploy_contract(
 /// Shows the account balance for a set of tokens
 pub async fn show_contract(
     network: &Network,
-    contract_address: &String,
-    accounts: &Vec<String>,
-    tokens: Vec<String>,
+    contract_address: &str,
+    accounts: &[String],
+    tokens: &[String],
 ) {
     let client = client(network);
     let contract_address = FieldElement::from_hex_be(contract_address).unwrap();
@@ -250,7 +241,7 @@ pub async fn show_contract(
     let selector = get_selector_from_name("balance_of_batch").unwrap();
 
     let mut calldata = Vec::<FieldElement>::cairo_serialize(&account_felts);
-    calldata.append(&mut tokens_to_felts(&tokens));
+    calldata.append(&mut tokens_to_felts(tokens));
 
     let result = client
         .call(
