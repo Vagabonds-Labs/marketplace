@@ -16,6 +16,8 @@ struct Args {
 enum Commands {
     #[command(arg_required_else_help = true)]
     ShowAll {
+        /// Contract address
+        contract_address: String,
         /// The account to show
         account: String,
         /// Shows all tokens in the contract specification
@@ -23,6 +25,8 @@ enum Commands {
     },
     #[command(arg_required_else_help = true)]
     Show {
+        /// Contract address
+        contract_address: String,
         /// The account to show
         account: String,
         /// Token ID to show
@@ -48,7 +52,11 @@ async fn main() {
     let network = args.network.unwrap_or_default();
 
     match args.command {
-        Commands::ShowAll { account, spec } => {
+        Commands::ShowAll {
+            contract_address,
+            account,
+            spec,
+        } => {
             if !spec.exists() {
                 panic!("Spec file not found");
             }
@@ -56,7 +64,8 @@ async fn main() {
             let spec: ContractSpec = toml::from_str(&file_content).unwrap();
             show_contract(
                 &network,
-                &account,
+                &contract_address,
+                &vec![account],
                 spec.tokens
                     .iter()
                     .map(|token_info| token_info.name.clone())
@@ -64,7 +73,11 @@ async fn main() {
             )
             .await
         }
-        Commands::Show { account, token } => show_contract(&network, &account, vec![token]).await,
+        Commands::Show {
+            contract_address,
+            account,
+            token,
+        } => show_contract(&network, &contract_address, &vec![account], vec![token]).await,
         Commands::Deploy {
             spec,
             address,

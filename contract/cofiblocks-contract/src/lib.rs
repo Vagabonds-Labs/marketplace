@@ -10,7 +10,7 @@ use starknet::{
     core::{
         chain_id,
         types::{BlockId, BlockTag, ExecutionResult, FieldElement, FunctionCall, StarknetError},
-        utils::{cairo_short_string_to_felt, get_selector_from_name},
+        utils::get_selector_from_name,
     },
     macros::{felt, short_string},
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider, ProviderError, Url},
@@ -134,6 +134,20 @@ async fn watch_tx(
     }
 }
 
+fn tokens_to_felts(token_names: &Vec<String>) -> Vec<FieldElement> {
+    let mut tokens = vec![];
+    for token_name in token_names {
+        let mut bytes = [0u8; 32];
+        hex::decode_to_slice(token_name.clone(), &mut bytes as &mut [u8]).unwrap();
+        let value = U256 {
+            high: u128::from_be_bytes(bytes[16..].try_into().unwrap()),
+            low: u128::from_be_bytes(bytes[..16].try_into().unwrap()),
+        };
+        tokens.push(value);
+    }
+    Vec::<U256>::cairo_serialize(&tokens)
+}
+
 /// Deploys a ERC-1155 contract to the specified network, using an account address, a keystore
 /// path, a recipient and a contract spec.
 pub async fn deploy_contract(
@@ -172,17 +186,13 @@ pub async fn deploy_contract(
     ctor_args.append(&mut ByteArray::cairo_serialize(&byte_array));
     ctor_args.push(FieldElement::from_hex_be(recipient).unwrap());
 
-    let mut tokens = vec![];
-    for token in &spec.tokens {
-        let mut bytes = [0u8; 32];
-        hex::decode_to_slice(token.name.clone(), &mut bytes as &mut [u8]).unwrap();
-        let value = U256 {
-            high: u128::from_be_bytes(bytes[16..].try_into().unwrap()),
-            low: u128::from_be_bytes(bytes[..16].try_into().unwrap()),
-        };
-        tokens.push(value);
-    }
-    ctor_args.append(&mut Vec::<U256>::cairo_serialize(&tokens));
+    ctor_args.append(&mut tokens_to_felts(
+        &spec
+            .tokens
+            .iter()
+            .map(|token_info| token_info.name.clone())
+            .collect(),
+    ));
 
     let mut values = vec![];
     for token in &spec.tokens {
@@ -196,7 +206,7 @@ pub async fn deploy_contract(
 
     let contract_deployment = contract_factory
         .deploy(ctor_args, salt, true)
-        .max_fee(FieldElement::from(40000000000000_u128)); // Fixme, what value is suitable?
+        .max_fee(FieldElement::from(400000000000000_u128)); // Fixme, what value is suitable?
     let deployed_address = contract_deployment.deployed_address();
     let estimated_fee = contract_deployment.estimate_fee().await.unwrap();
     eprintln!(
@@ -224,21 +234,23 @@ pub async fn deploy_contract(
         .unwrap();
 }
 
-pub async fn show_contract(network: &Network, account: &str, tokens: Vec<String>) {
+/// Shows the account balance for a set of tokens
+pub async fn show_contract(
+    network: &Network,
+    contract_address: &String,
+    accounts: &Vec<String>,
+    tokens: Vec<String>,
+) {
     let client = client(network);
-    let contract_address = FieldElement::from_hex_be(account).unwrap();
+    let contract_address = FieldElement::from_hex_be(contract_address).unwrap();
+    let account_felts = accounts
+        .iter()
+        .map(|account| FieldElement::from_hex_be(account).unwrap())
+        .collect();
     let selector = get_selector_from_name("balance_of_batch").unwrap();
 
-    let mut calldata = vec![];
-    calldata.push(FieldElement::from(tokens.len()));
-    for token in tokens {
-        // FIXME: Hashing is not working
-        //let mut hasher = Sha256::new();
-        //hasher.update(&token);
-        //let hashed_name: [u8; 32] = hasher.finalize().into();
-        //calldata.push(FieldElement::from_bytes_be(&hashed_name).unwrap());
-        calldata.push(cairo_short_string_to_felt(&token).unwrap());
-    }
+    let mut calldata = Vec::<FieldElement>::cairo_serialize(&account_felts);
+    calldata.append(&mut tokens_to_felts(&tokens));
 
     let result = client
         .call(
