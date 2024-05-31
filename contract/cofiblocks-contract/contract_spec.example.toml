@@ -1,0 +1,29 @@
+base_uri = "mock://cofiblocks"
+
+[[tokens]]
+name = "df3e6b0bb66ceaadca4f84cbc371fd66e04d20fe51fc414da8d1b84d31d178de"
+value = 128
+
+[[tokens]]
+name = "d8cc7aed3851ac3338fcc15df3b6807b89125837f77a75b9ecb13ed2afe3b49f"
+value = 2797982
+
+[[tokens]]
+name = "5d6b091416885eaa91283321b69dc526fc42c97783e4cdfdff7a945e3be1f9ef"
+value = 278962
+
+[[tokens]]
+name = "4cb0ea499ca7177d32b4deb6e251d0a8f857f91d078af209b7d354528ef62201"
+value = 1
+
+[[tokens]]
+name = "aa1f6f7084d4030e09f5542aa22e7947a81cec2966a251da748cfb501ace6ddc"
+value = 1708720
+
+[[tokens]]
+name = "8675c9c1f6558212f7f95f5308c03655067e925157ed6e65f024aefadfc7d64f"
+value = 78902782
+
+[[tokens]]
+name = "5495bf3e5fd103dc8de35348e58f03cd1d5ffb46b7fd0ef77a4a7acdf820925c"
+value = 1767982
